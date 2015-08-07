@@ -29,12 +29,11 @@ func LoadPKCS1PrivateKeyPEM(path, password string) (*rsa.PrivateKey, error) {
 	if block.Type != "RSA PRIVATE KEY" {
 		return nil, errors.New("Invalid key; no RSA PRIVATE KEY block")
 	}
-	data, err := x509.DecryptPEMBlock(block, []byte(password))
-	if err != nil {
-		if err != x509.IncorrectPasswordError {
-			return nil, err
-		}
+	var data []byte
+	if !x509.IsEncryptedPEMBlock(block) {
 		data = block.Bytes
+	} else if data, err = x509.DecryptPEMBlock(block, []byte(password)); err != nil {
+		return nil, err
 	}
 	return x509.ParsePKCS1PrivateKey(data)
 }

@@ -22,13 +22,12 @@ var (
 	oidSHA1               = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
 )
 
+// Sign generate sign for data with cert & private key
 func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte, error) {
-	// вычисляем хеш от данных
 	var hash = sha1.New()
 	if _, err := io.Copy(hash, data); err != nil {
 		return nil, err
 	}
-	// инициализируем данные подписи
 	var signedData = signedData{
 		Version: 1,
 		DigestAlgorithms: []algorithmIdentifier{{
@@ -36,7 +35,7 @@ func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte,
 			Parameters: asn1.RawValue{Tag: 5},
 		}},
 		ContentInfo: contentInfo{Type: oidPKCS7Data},
-		Certificates: asn1.RawValue{ // плюс добавляем корневой сертификат Apple
+		Certificates: asn1.RawValue{
 			Class: 2, Tag: 0, Bytes: append(wwdr, cert.Raw...), IsCompound: true,
 		},
 		SignerInfos: []signerInfo{{
@@ -51,8 +50,8 @@ func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte,
 			},
 			AuthenticatedAttributes: []attribute{
 				newAttribute(oidPKCS9ContentType, oidPKCS7Data),
-				newAttribute(oidPKCS9SigningTime, time.Now().UTC()), // время подписи
-				newAttribute(oidPKCS9MessageDigest, hash.Sum(nil)),  // хеш данных
+				newAttribute(oidPKCS9SigningTime, time.Now().UTC()),
+				newAttribute(oidPKCS9MessageDigest, hash.Sum(nil)),
 			},
 			DigestEncryptionAlgorithm: algorithmIdentifier{
 				Algorithm:  oidPKCS1RSAEncryption,
@@ -60,7 +59,6 @@ func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte,
 			},
 		}},
 	}
-	// кодируем атрибуты
 	encodedAuthenticatedAttributes, err := asn1.Marshal(
 		signedData.SignerInfos[0].AuthenticatedAttributes)
 	if err != nil {
@@ -75,14 +73,11 @@ func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte,
 	hash.Write(encodedAuthenticatedAttributes)
 	var attributesDigest = hash.Sum(nil)
 	encodedAuthenticatedAttributes[0] = originalFirstByte
-	// подписываем атрибуты
 	encryptedDigest, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA1, attributesDigest)
 	if err != nil {
 		return nil, err
 	}
-	// добавляем сигнатуру подписанных атрибутов
 	signedData.SignerInfos[0].EncryptedDigest = encryptedDigest
-	// инициализируем контейнер с данными подписи и возвращаем его уже в виде байтов
 	return asn1.Marshal(container{
 		OID:        oidPKCS7SignedData,
 		SignedData: signedData,

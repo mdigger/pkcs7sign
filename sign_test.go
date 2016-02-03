@@ -1,22 +1,13 @@
 package pkcs7
 
 import (
-	"crypto/x509"
 	"io/ioutil"
 	"os"
 	"testing"
 )
 
-func loadWWDR(name string) (*x509.Certificate, error) {
-	b, err := ioutil.ReadFile(name)
-	if err != nil {
-		return nil, err
-	}
-	return x509.ParseCertificate(b)
-}
-
 func TestSign(t *testing.T) {
-	wwdr, err := loadWWDR("AppleWWDRCA.cer")
+	wwdr, err := LoadCertificate("AppleWWDRCA.cer")
 	if err != nil {
 		t.Fatal("Error loading WWDR certificate:", err)
 	}

@@ -7,6 +7,10 @@ import (
 )
 
 func TestSign(t *testing.T) {
+	wwdr, err := LoadCertificate("AppleWWDRCA.cer")
+	if err != nil {
+		t.Fatal("Error loading WWDR certificate:", err)
+	}
 	cert, err := LoadCertificate("cert.cer")
 	if err != nil {
 		t.Fatal("Error loading certificate:", err)
@@ -20,7 +24,7 @@ func TestSign(t *testing.T) {
 		t.Fatal("Error opening manifest:", err)
 	}
 	defer f.Close()
-	data, err := Sign(f, cert, priv)
+	data, err := Sign(f, cert, priv, wwdr)
 	if err != nil {
 		t.Fatal("Error signing manifest:", err)
 	}

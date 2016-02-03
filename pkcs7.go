@@ -1,3 +1,4 @@
+// Package pkcs7 provides signing based on RFC 2315.
 package pkcs7
 
 import (
@@ -22,12 +23,19 @@ var (
 	oidSHA1               = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
 )
 
-// Sign generate sign for data with cert & private key
-func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte, error) {
+// Sign data with cert & private key.
+func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey, intermediate *x509.Certificate) ([]byte, error) {
 	var hash = sha1.New()
 	if _, err := io.Copy(hash, data); err != nil {
 		return nil, err
 	}
+
+	raw := cert.Raw
+	// Passbook needs Apple's intermediate WWDR certificate.
+	if intermediate != nil {
+		raw = append(raw, intermediate.Raw...)
+	}
+
 	var signedData = signedData{
 		Version: 1,
 		DigestAlgorithms: []algorithmIdentifier{{
@@ -36,7 +44,7 @@ func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte,
 		}},
 		ContentInfo: contentInfo{Type: oidPKCS7Data},
 		Certificates: asn1.RawValue{
-			Class: 2, Tag: 0, Bytes: append(wwdr, cert.Raw...), IsCompound: true,
+			Class: 2, Tag: 0, Bytes: raw, IsCompound: true,
 		},
 		SignerInfos: []signerInfo{{
 			Version: 1,
@@ -65,7 +73,7 @@ func Sign(data io.Reader, cert *x509.Certificate, priv *rsa.PrivateKey) ([]byte,
 		return nil, err
 	}
 	// For the digest of the authenticated attributes, we need a
-	// slightly different encoding.  Change the attributes from a
+	// slightly different encoding. Change the attributes from a
 	// SEQUENCE to a SET.
 	var originalFirstByte = encodedAuthenticatedAttributes[0]
 	encodedAuthenticatedAttributes[0] = 0x31
@@ -91,7 +99,7 @@ type container struct {
 
 // signedData is defined in rfc2315, section 9.1.
 type signedData struct {
-	Version          int                   `asn:"default:1"`
+	Version          int                   `asn1:"default:1"`
 	DigestAlgorithms []algorithmIdentifier `asn1:"set"`
 	ContentInfo      contentInfo
 	Certificates     asn1.RawValue `asn1:"tag:0,explicit,optional"`

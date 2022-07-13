@@ -5,36 +5,60 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"io"
 	"io/ioutil"
+	"os"
 )
 
-// LoadCertificate load & parse a single certificate from the given ASN.1 DER file (*.cer).
-func LoadCertificate(path string) (*x509.Certificate, error) {
-	data, err := ioutil.ReadFile(path)
+func LoadCertificate(reader io.Reader) (cert *x509.Certificate, err error) {
+	data, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
+	return LoadCertificateFromBytes(data)
+}
+
+func LoadCertificateFromFile(path string) (cert *x509.Certificate, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return LoadCertificate(file)
+}
+
+func LoadCertificateFromBytes(data []byte) (cert *x509.Certificate, err error) {
 	return x509.ParseCertificate(data)
 }
 
-// LoadPKCS1PrivateKeyPEM load & parse private key from PEM-file
-func LoadPKCS1PrivateKeyPEM(path, password string) (*rsa.PrivateKey, error) {
-	bytes, err := ioutil.ReadFile(path)
+func LoadPKCS1PrivateKeyPEM(reader io.Reader, password string) (*rsa.PrivateKey, error) {
+	bytes, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}
-	block, _ := pem.Decode(bytes)
+	return LoadPKCS1PrivateKeyPEMFromBytes(bytes, password)
+}
+
+func LoadPKCS1PrivateKeyPEMFromBytes(data []byte, password string) (c *rsa.PrivateKey, err error) {
+	block, _ := pem.Decode(data)
 	if block == nil {
 		return nil, errors.New("Invalid key; no PEM data found")
 	}
 	if block.Type != "RSA PRIVATE KEY" {
 		return nil, errors.New("Invalid key; no RSA PRIVATE KEY block")
 	}
-	var data []byte
+	var cert []byte
 	if !x509.IsEncryptedPEMBlock(block) {
-		data = block.Bytes
-	} else if data, err = x509.DecryptPEMBlock(block, []byte(password)); err != nil {
+		cert = block.Bytes
+	} else if cert, err = x509.DecryptPEMBlock(block, []byte(password)); err != nil {
 		return nil, err
 	}
-	return x509.ParsePKCS1PrivateKey(data)
+	return x509.ParsePKCS1PrivateKey(cert)
+}
+
+func LoadPKCS1PrivateKeyPEMFromFile(path, password string) (*rsa.PrivateKey, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	return LoadPKCS1PrivateKeyPEM(file, password)
 }
